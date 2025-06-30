@@ -1,6 +1,4 @@
-import React, { useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
+import React, { useEffect, useRef, useState } from "react";
 
 const sampleSites = [
   {
@@ -33,22 +31,61 @@ const sampleSites = [
 ];
 
 function App() {
+  const mapRef = useRef(null);
   const [filter, setFilter] = useState("");
+  const [mapLoaded, setMapLoaded] = useState(false);
 
-  const filteredSites = sampleSites.filter(
-    (site) =>
-      site.siteName.toLowerCase().includes(filter.toLowerCase()) ||
-      site.mediaOwner.toLowerCase().includes(filter.toLowerCase())
-  );
+  useEffect(() => {
+    if (!window.google || mapLoaded) return;
+
+    const map = new window.google.maps.Map(mapRef.current, {
+      center: { lat: -29.85, lng: 24.0 },
+      zoom: 5,
+    });
+
+    const trafficLayer = new window.google.maps.TrafficLayer();
+    trafficLayer.setMap(map);
+
+    sampleSites.forEach((site) => {
+      if (
+        site.siteName.toLowerCase().includes(filter.toLowerCase()) ||
+        site.mediaOwner.toLowerCase().includes(filter.toLowerCase())
+      ) {
+        const marker = new window.google.maps.Marker({
+          position: { lat: site.lat, lng: site.lng },
+          map,
+          title: site.siteName,
+        });
+
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <strong>${site.siteName}</strong><br/>
+            ${site.mediaOwner}<br/>
+            ${site.format}<br/>
+            Visibility Score: ${site.visibility}
+          `,
+        });
+
+        marker.addListener("click", () => {
+          infoWindow.open(map, marker);
+        });
+      }
+    });
+
+    setMapLoaded(true);
+  }, [filter, mapLoaded]);
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "10px", background: "#f0f0f0" }}>
-        <h2>📍 DOOH Planner Demo</h2>
+        <h2>🗺️ DOOH Planner with Live Traffic</h2>
         <input
           placeholder="Filter by Media Owner or Site Name"
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={(e) => {
+            setMapLoaded(false); // Force re-init
+            setFilter(e.target.value);
+          }}
           style={{
             padding: "8px",
             width: "300px",
@@ -58,22 +95,7 @@ function App() {
           }}
         />
       </div>
-      <MapContainer center={[-29.85, 24.0]} zoom={5} style={{ flex: 1 }}>
-        <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {filteredSites.map((site, idx) => (
-          <Marker key={idx} position={[site.lat, site.lng]}>
-            <Popup>
-              <strong>{site.siteName}</strong><br />
-              Owner: {site.mediaOwner}<br />
-              Format: {site.format}<br />
-              Visibility Score: {site.visibility}
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
+      <div ref={mapRef} style={{ flex: 1 }} />
     </div>
   );
 }
